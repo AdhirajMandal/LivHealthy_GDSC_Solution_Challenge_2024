@@ -1,0 +1,33 @@
+<!-- templates/map.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Map</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y&callback=initMap" async defer></script>
+    <script>
+        function initMap() {
+            const map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 0, lng: 0 },
+                zoom: 2,
+            });
+
+            const reports = {{ reports | tojson }};
+            reports.forEach(report => {
+                const marker = new google.maps.Marker({
+                    position: { lat: report.latitude, lng: report.longitude },
+                    map,
+                    title: report.description,
+                });
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Incident Map</h1>
+    <div id="map" style="height: 400px;"></div>
+</body>
+</html>

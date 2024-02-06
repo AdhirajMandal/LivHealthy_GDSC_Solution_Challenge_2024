@@ -1,0 +1,48 @@
+<!-- templates/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Reporting</title>
+</head>
+<body>
+    <h1>Incident Reporting</h1>
+    <form id="incidentForm">
+        Latitude: <input type="text" id="latitude" required><br>
+        Longitude: <input type="text" id="longitude" required><br>
+        Description: <textarea id="description" required></textarea><br>
+        <button type="button" onclick="submitReport()">Submit Report</button>
+    </form>
+
+    <script>
+        function submitReport() {
+            const latitude = document.getElementById('latitude').value;
+            const longitude = document.getElementById('longitude').value;
+            const description = document.getElementById('description').value;
+
+            fetch('/report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    latitude,
+                    longitude,
+                    description,
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                document.getElementById('incidentForm').reset();
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
