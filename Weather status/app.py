@@ -44,10 +44,10 @@ def display_weather_on_map(api_key, cities):
     weather_map.save("weather_map.html")
 
 if __name__ == "__main__":
-    # Replace 'YOUR_API_KEY' with your actual OpenWeatherMap API key
+
     openweathermap_api_key = '09bd2a7b591bbd09e0a3b677112aa8ee'
 
     # List of cities to display weather information (you can add more cities)
-    cities = ['London', 'New York', 'Tokyo', 'Sydney', 'Mumbai']  # Add more cities as needed
+    cities = ['London', 'New York', 'Tokyo', 'Sydney', 'Mumbai'] 
 
     display_weather_on_map(openweathermap_api_key, cities)

@@ -1,5 +1,26 @@
-import requests
 import folium
+import requests
+
+def get_current_location():
+    try:
+    
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
 
 def get_places(api_key, location, radius, keyword):
     base_url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
@@ -43,17 +64,15 @@ def mark_danger_zones(api_key, location, radius, industrial_keyword, factory_key
     danger_zones_map
 
 if __name__ == "__main__":
-    # Replace 'YOUR_API_KEY' with your actual Google Places API key
     api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
 
     # Specify the location (latitude and longitude) around which to search for places
-    location = '22.594480,88.265690'  # Example location (San Francisco, CA)
+    location = get_current_location()['loc'] 
     
     # Specify the search radius in meters
-    radius = 5000  # Example radius (5000 meters or 5 kilometers)
+    radius = 5000  
 
-    # Specify the keywords to search for industrial areas and factories
-    industrial_keyword = 'industrial'
+    industrial_keyword = 'industry'
     factory_keyword = 'factory'
 
     mark_danger_zones(api_key, location, radius, industrial_keyword, factory_keyword)
