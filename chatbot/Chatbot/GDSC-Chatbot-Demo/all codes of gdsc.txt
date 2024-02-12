@@ -1,0 +1,1677 @@
+import folium
+import requests
+
+def get_current_location():
+    try:
+    
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+def get_weather(api_key, latitude, longitude):
+    base_url = "http://api.openweathermap.org/data/2.5/weather"
+    params = {
+        "lat": latitude,
+        "lon": longitude,
+        "appid": api_key,
+        "units": "metric",  # Use metric units for temperature in Celsius
+    }
+
+    response = requests.get(base_url, params=params)
+    data = response.json()
+
+    if "main" in data and "weather" in data:
+        temperature = data["main"]["temp"]
+        humidity = data["main"]["humidity"]
+        weather_conditions = data["weather"][0]["description"]
+        
+        return {
+            'temperature': temperature,
+            'humidity': humidity,
+            'weather_conditions': weather_conditions,
+        }
+    else:
+        return None
+
+def get_air_quality(api_key, latitude, longitude):
+    base_url = "http://api.openweathermap.org/data/2.5/air_pollution"
+    params = {
+        "lat": latitude,
+        "lon": longitude,
+        "appid": api_key,
+    }
+
+    response = requests.get(base_url, params=params)
+    data = response.json()
+
+    if "list" in data:
+        air_quality_data = data["list"][0]["components"]
+        return air_quality_data
+    else:
+        return None
+
+def main():
+   
+    api_key = '09bd2a7b591bbd09e0a3b677112aa8ee'
+    
+  
+    location_data = get_current_location()
+    if location_data is None:
+        print("Unable to fetch current location.")
+        return
+
+    latitude = float(location_data['loc'].split(',')[0])
+    longitude = float(location_data['loc'].split(',')[1])
+
+   
+    weather_info = get_weather(api_key, latitude, longitude)
+
+    if weather_info is not None:
+      
+        print("Weather Information:")
+        print(f"Temperature: {weather_info['temperature']}°C")
+        print(f"Humidity: {weather_info['humidity']}%")
+        print(f"Weather Conditions: {weather_info['weather_conditions']}")
+
+   
+        air_quality_data = get_air_quality(api_key, latitude, longitude)
+
+        if air_quality_data is not None:
+            
+            print("\nAir Quality Information:")
+            print(f"Sulfur Dioxide (SO2): {air_quality_data.get('so2', 'N/A')} µg/m³")
+            print(f"Oxygen (O2): {air_quality_data.get('o3', 'N/A')} µg/m³")
+            print(f"Carbon Dioxide (CO2): {air_quality_data.get('co', 'N/A')} µg/m³")
+
+            map_center = [latitude, longitude]
+            my_map = folium.Map(location=map_center, zoom_start=12)
+
+            popup_text = (
+                f"Weather Information:\n"
+                f"Temperature: {weather_info['temperature']}°C\n"
+                f"Humidity: {weather_info['humidity']}%\n"
+                f"Weather Conditions: {weather_info['weather_conditions']}\n\n"
+                f"Air Quality Information:\n"
+                f"Sulfur Dioxide (SO2): {air_quality_data.get('so2', 'N/A')} µg/m³\n"
+                f"Oxygen (O2): {air_quality_data.get('o3', 'N/A')} µg/m³\n"
+                f"Carbon Dioxide (CO2): {air_quality_data.get('co', 'N/A')} µg/m³"
+            )
+            folium.Marker(location=map_center, popup=popup_text, icon=folium.Icon(color='red')).add_to(my_map)
+
+            my_map.save('weather_and_air_quality_map.html')
+            print("Weather and air quality information displayed. Map saved to 'weather_and_air_quality_map.html'")
+        else:
+            print("Unable to fetch air quality data.")
+    else:
+        print("Unable to fetch weather data.")
+
+if __name__ == "__main__":
+    main()
+
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:  
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+
+    places_result = gmaps.places_nearby(**params)
+    
+
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+    search_keyword = 'chemical storage facilities near me'  # Change this to your desired keyword
+
+    search_radius = 4000
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+    my_map = create_map(map_center)
+
+    add_markers(my_map, nearby_locations)
+
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+      
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+   
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+    
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+    search_keyword = 'Environmental testing plants near me'  # Change this to your desired keyword
+    
+
+    search_radius = 5000
+
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+    my_map = create_map(map_center)
+    
+    add_markers(my_map, nearby_locations)
+  
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+     
+        response = requests.get('https://ipinfo.io/json')
+        
+
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+
+    places_result = gmaps.places_nearby(**params)
+    
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+   
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+    
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+  
+    search_keyword = 'fire station'  # Change this to your desired keyword
+   
+    search_radius = 3000
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+    my_map = create_map(map_center)
+    
+    add_markers(my_map, nearby_locations)
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+        
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+    
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+   
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+    
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+   
+    search_keyword = 'Public health departments near me'  # Change this to your desired keyword
+  
+    search_radius = 4000
+
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+    my_map = create_map(map_center)
+    
+    add_markers(my_map, nearby_locations)
+    
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+       
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+    
+
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+    
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+   
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+    
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+   
+    search_keyword = 'Water treatment plants near me'  # Change this to your desired keyword
+    
+   
+    search_radius = 3000
+
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+ 
+    my_map = create_map(map_center)
+  
+    add_markers(my_map, nearby_locations)
+    
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+       
+        response = requests.get('https://ipinfo.io/json')
+
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+    search_keyword = 'Urgent care center near me'  # Change this to your desired keyword
+    
+    search_radius = 2000
+
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+ 
+    my_map = create_map(map_center)
+    
+
+    add_markers(my_map, nearby_locations)
+    
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    # Create a map centered around the specified location
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+    search_keyword = 'arboretums near me'  # Change this to your desired keyword
+    search_radius = 5000
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+    my_map = create_map(map_center)
+
+    add_markers(my_map, nearby_locations)
+
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+  
+    places_result = gmaps.places_nearby(**params)
+    
+  
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+   
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+  
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+    search_keyword = 'botanical garden'  # Change this to your desired keyword
+
+    search_radius = 5000
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    my_map = create_map(map_center)
+    add_markers(my_map, nearby_locations)
+    
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+      
+        response = requests.get('https://ipinfo.io/json')
+        
+  
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+
+    places_result = gmaps.places_nearby(**params)
+    
+
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+    search_keyword = 'nature preserve'  # Change this to your desired keyword
+    
+
+    search_radius = 5000
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+   
+    my_map = create_map(map_center)
+ 
+    add_markers(my_map, nearby_locations)
+  
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+       
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    
+    # Define the parameters for the nearby search
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+    
+    # Extract information about the locations
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+    search_keyword = 'Playgrounds and recreational centres near me'  # Change this to your desired keyword
+    
+    search_radius = 5000
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+
+    my_map = create_map(map_center)
+    
+    add_markers(my_map, nearby_locations)
+
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+from datetime import datetime
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        
+
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def find_nearby_parks(api_key, location, open_now=False):
+    gmaps = googlemaps.Client(key=api_key)
+    
+
+    params = {
+        'location': location,
+        'radius': 5000,  # Radius in meters (adjust as needed)
+        'open_now': open_now,  # Set to True if you want to find parks that are currently open
+        'type': 'park',  # Specify the type as 'park' to filter for public parks
+    }
+    
+
+    parks_result = gmaps.places_nearby(**params)
+    
+
+    nearby_parks = []
+    for park in parks_result.get('results', []):
+        park_info = {
+            'name': park['name'],
+            'address': park.get('vicinity', 'N/A'),
+            'location': park['geometry']['location'],
+        }
+        nearby_parks.append(park_info)
+    
+    return nearby_parks
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+
+    location = get_current_location()['loc']
+    map_center = ((float)(location.split(',')[0]),(float) (location.split(',')[1]))
+    
+
+    open_now = False
+    
+    nearby_parks = find_nearby_parks(api_key, location, open_now)
+    
+    my_map = folium.Map(location=map_center, zoom_start=14)
+
+    for park in nearby_parks:
+        folium.Marker(
+            location=[park['location']['lat'], park['location']['lng']],
+            popup=f"{park['name']} - {park['address']}",
+            icon=folium.Icon(color='green', icon='tree')
+        ).add_to(my_map)
+
+    my_map.save('public_parks_map.html')
+
+if __name__ == "__main__":
+    main()
+
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    places_result = gmaps.places_nearby(**params)
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+ 
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+   
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+   
+    search_keyword = 'urban greenways near me'  # Change this to your desired keyword
+    
+   
+    search_radius = 6000
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    my_map = create_map(map_center)
+    
+
+    add_markers(my_map, nearby_locations)
+    
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+import googlemaps
+import folium
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def search_nearby_locations(api_key, location, keyword, radius=5000):
+    gmaps = googlemaps.Client(key=api_key)
+
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+    }
+    
+    places_result = gmaps.places_nearby(**params)
+    
+    nearby_locations = []
+    for place in places_result.get('results', []):
+        location_info = {
+            'name': place['name'],
+            'address': place.get('vicinity', 'N/A'),
+            'location': place['geometry']['location'],
+        }
+        nearby_locations.append(location_info)
+    
+    return nearby_locations
+
+def create_map(center_location, zoom_start=14):
+
+    return folium.Map(location=center_location, zoom_start=zoom_start)
+
+def add_markers(map_object, locations):
+   
+    for location in locations:
+        folium.Marker(
+            location=[location['location']['lat'], location['location']['lng']],
+            popup=f"{location['name']} - {location['address']}",
+            icon=folium.Icon(color='blue', icon='info-sign')
+        ).add_to(map_object)
+
+def main():
+    
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    
+  
+    my_location = get_current_location()['loc']
+    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    
+    
+    search_keyword = 'wildlife sanctuaries near me'  # Change this to your desired keyword
+    
+
+    search_radius = 5000
+    
+    
+    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    
+  
+    my_map = create_map(map_center)
+ 
+    add_markers(my_map, nearby_locations)
+  
+    my_map.save('nearby_locations_map.html')
+
+if __name__ == "__main__":
+    main()
+
+import folium
+import requests
+
+def get_current_location():
+    try:
+    
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def get_places(api_key, location, radius, keyword):
+    base_url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+    params = {
+        'location': location,
+        'radius': radius,
+        'keyword': keyword,
+        'key': api_key
+    }
+
+    response = requests.get(base_url, params=params)
+    results = response.json().get('results', [])
+
+    return results
+
+def mark_danger_zones(api_key, location, radius, industrial_keyword, factory_keyword):
+    danger_zones_map = folium.Map(location=[float(coord) for coord in location.split(',')], zoom_start=13)
+
+    industrial_areas = get_places(api_key, location, radius, industrial_keyword)
+    factories = get_places(api_key, location, radius, factory_keyword)
+
+    for place in industrial_areas:
+        name = place.get('name', 'Unknown')
+        geometry = place.get('geometry', {})
+        location = geometry.get('location', {})
+        lat = location.get('lat', 0.0)
+        lng = location.get('lng', 0.0)
+
+        folium.Marker([lat, lng], popup=f"Industrial Area: {name}", icon=folium.Icon(color='red')).add_to(danger_zones_map)
+
+    for place in factories:
+        name = place.get('name', 'Unknown')
+        geometry = place.get('geometry', {})
+        location = geometry.get('location', {})
+        lat = location.get('lat', 0.0)
+        lng = location.get('lng', 0.0)
+
+        folium.Marker([lat, lng], popup=f"Factory: {name}", icon=folium.Icon(color='red')).add_to(danger_zones_map)
+
+    danger_zones_map.save('danger_zones_map.html')
+    danger_zones_map
+
+if __name__ == "__main__":
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+
+    # Specify the location (latitude and longitude) around which to search for places
+    location = get_current_location()['loc'] 
+    
+    # Specify the search radius in meters
+    radius = 5000  
+
+    industrial_keyword = 'industry'
+    factory_keyword = 'factory'
+
+    mark_danger_zones(api_key, location, radius, industrial_keyword, factory_keyword)
+import requests
+import folium
+import polyline
+
+def get_current_location():
+    try:
+      
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def find_nearby_hospitals(api_key, latitude, longitude, radius=5000, types='hospital'):
+    base_url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+    params = {
+        'location': f'{latitude},{longitude}',
+        'radius': radius,
+        'types': types,
+        'key': api_key
+    }
+
+    response = requests.get(base_url, params=params)
+    data = response.json()
+
+    if response.status_code == 200 and data.get('status') == 'OK':
+        hospitals = data.get('results', [])
+        return hospitals
+    else:
+        print(f"Error: {data.get('status', 'Unknown error')}")
+        return None
+
+def print_hospitals(hospitals):
+    if hospitals:
+        print("Nearby Hospitals:")
+        for idx, hospital in enumerate(hospitals, start=1):
+            name = hospital.get('name', 'N/A')
+            vicinity = hospital.get('vicinity', 'N/A')
+            print(f"{idx}. {name} - {vicinity}")
+    else:
+        print("No hospitals found.")
+
+def mark_on_map(map_object, latitude, longitude, popup_text):
+    folium.Marker([latitude, longitude], popup=popup_text).add_to(map_object)
+
+def get_route(api_key, origin, destination):
+    base_url = 'https://maps.googleapis.com/maps/api/directions/json'
+    params = {
+        'origin': origin,
+        'destination': destination,
+        'key': api_key
+    }
+
+    response = requests.get(base_url, params=params)
+    data = response.json()
+
+    if response.status_code == 200 and data.get('status') == 'OK':
+        return data.get('routes', [])[0]['overview_polyline']['points']
+    else:
+        print(f"Error: {data.get('status', 'Unknown error')}")
+        return None
+
+if __name__ == "__main__":
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+
+    my_location = get_current_location()['loc']
+    origin_latitude = (float)(my_location.split(',')[0])
+    origin_longitude = (float) (my_location.split(',')[1])
+    
+    radius = 5000
+
+    hospitals = find_nearby_hospitals(api_key, origin_latitude, origin_longitude, radius)
+    print_hospitals(hospitals)
+
+    hospital_map = folium.Map(location=[origin_latitude, origin_longitude], zoom_start=13)
+
+    if hospitals:
+        first_hospital = hospitals[0]
+        hospital_name = first_hospital.get('name', 'N/A')
+        hospital_vicinity = first_hospital.get('vicinity', 'N/A')
+        popup_text = f"{hospital_name}\n{hospital_vicinity}"
+        mark_on_map(hospital_map, first_hospital['geometry']['location']['lat'], first_hospital['geometry']['location']['lng'], popup_text)
+
+        destination_latitude = first_hospital['geometry']['location']['lat']
+        destination_longitude = first_hospital['geometry']['location']['lng']
+        route_coordinates = get_route(api_key, f'{origin_latitude},{origin_longitude}', f'{destination_latitude},{destination_longitude}')
+
+        decoded_route = polyline.decode(route_coordinates)
+        folium.PolyLine(locations=decoded_route, color='blue').add_to(hospital_map)
+
+    hospital_map.save("hospital_route_map.html")
+
+import googlemaps
+import folium
+from datetime import datetime
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+
+API_KEY = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+gmaps = googlemaps.Client(key=API_KEY)
+
+def get_education_institutes_locations():
+
+    places_result = gmaps.places(query='school | institute', location=(latitude, longitude), radius=5000)
+
+    education_institutes = []
+    for place in places_result['results']:
+        location = place['geometry']['location']
+        education_institutes.append((location['lat'], location['lng']))
+
+    return education_institutes
+
+def mark_slow_driving_areas(locations):
+    slow_driving_speed = 30  # Adjust as needed
+
+    for location in locations:
+        roads_result = gmaps.nearest_roads([location])
+        if roads_result and 'snappedPoints' in roads_result:
+            snapped_point = roads_result['snappedPoints'][0]
+            place_id = snapped_point.get('placeId', None)
+
+            if place_id:
+                gmaps.speed_limits(place_id=place_id, start_time=datetime.now(), speed_limit=slow_driving_speed)
+
+def display_on_map(locations):
+    map_center = locations[0]  # Center the map on the first location
+
+    my_map = folium.Map(location=map_center, zoom_start=14)
+
+    for location in locations:
+        folium.Marker(location=location, popup="Education Institute").add_to(my_map)
+
+    my_map.save("education_institutes_map.html")
+    print("Map saved as education_institutes_map.html")
+
+if __name__ == "__main__":
+    my_location = get_current_location()['loc']
+    latitude = (float)(my_location.split(',')[0])
+    longitude = (float) (my_location.split(',')[1])
+
+    education_institutes_locations = get_education_institutes_locations()
+    mark_slow_driving_areas(education_institutes_locations)
+    display_on_map(education_institutes_locations)
+
+import folium
+import requests
+
+def get_weather(api_key, city):
+    weather_url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}"
+    response = requests.get(weather_url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        print(f"Error fetching data for {city}: {response.status_code}")
+        return None
+
+def add_marker(map_obj, location, popup_text, color):
+    folium.Marker(location, popup=popup_text, icon=folium.Icon(color=color)).add_to(map_obj)
+
+def get_weather_color(weather_condition):
+    # Map specific weather conditions to distinct colors
+    if 'rain' in weather_condition.lower():
+        return 'blue'
+    elif 'cloud' in weather_condition.lower():
+        return 'gray'
+    elif 'clear' in weather_condition.lower():
+        return 'yellow'
+    else:
+        return 'green'
+
+def display_weather_on_map(api_key, cities):
+    weather_map = folium.Map(location=[0, 0], zoom_start=2)
+
+    for city in cities:
+        data = get_weather(api_key, city)
+
+        if data and 'coord' in data:
+            lat, lon = data['coord']['lat'], data['coord']['lon']
+            temperature = data['main']['temp']
+            weather_condition = data['weather'][0]['description']
+
+            color = get_weather_color(weather_condition)
+            popup_text = f"City: {city}<br>Temperature: {temperature} K <br>Weather: {weather_condition}"
+            add_marker(weather_map, [lat, lon], popup_text, color)
+
+    weather_map.save("weather_map.html")
+
+if __name__ == "__main__":
+
+    openweathermap_api_key = '09bd2a7b591bbd09e0a3b677112aa8ee'
+
+    # List of cities to display weather information (you can add more cities)
+    cities = ['London', 'New York', 'Tokyo', 'Sydney', 'Mumbai'] 
+
+    display_weather_on_map(openweathermap_api_key, cities)
+from pyowm import OWM
+import requests
+
+def get_current_location():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def get_weather(api_key, location):
+    owm = OWM(api_key)
+    weather_manager = owm.weather_manager()
+    observation = weather_manager.weather_at_coords(*location)
+    weather = observation.weather
+    return weather
+
+api_key = '09bd2a7b591bbd09e0a3b677112aa8ee'
+my_location = get_current_location()['loc']
+location= ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+weather_conditions = get_weather(api_key, location)
+print(f"Weather: {weather_conditions.status}")
+import googlemaps
+from geopy.geocoders import Nominatim
+from gmplot import gmplot
+import requests
+
+def get_current_location1():
+    try:
+        response = requests.get('https://ipinfo.io/json')
+        
+        if response.status_code == 200:
+            data = response.json()
+            location = {
+                'ip': data.get('ip', 'N/A'),
+                'city': data.get('city', 'N/A'),
+                'region': data.get('region', 'N/A'),
+                'country': data.get('country', 'N/A'),
+                'loc': data.get('loc', 'N/A'),  # Latitude and longitude
+            }
+            return location
+        else:
+            print(f"Error: Unable to fetch location. Status Code: {response.status_code}")
+            return 'Error'
+    except Exception as e:
+        print(f"Error: {e}")
+        return 'Error'
+
+def get_current_location():
+    try:
+        geolocator = Nominatim(user_agent="hospital_locator")
+        location = geolocator.geocode("Your Specific Location or Address")
+        if location:
+            return location.latitude, location.longitude
+        else:
+            return None
+    except Exception as e:
+        print(f"Error determining current location: {e}")
+        return None
+
+def get_hospitals(api_key, location, radius):
+    gmaps = googlemaps.Client(key=api_key)
+    places_result = gmaps.places_nearby(
+        location=location,
+        radius=radius,
+        type='hospital'  # Filter by hospital types
+    )
+    hospitals = []
+    if 'results' in places_result:
+        hospitals = places_result['results']
+    return hospitals
+
+def plot_google_map(api_key, current_location, hospitals):
+    gmap = gmplot.GoogleMapPlotter(current_location[0], current_location[1], 13, apikey=api_key)
+
+    gmap.marker(current_location[0], current_location[1], color='blue', title='Current Location')
+
+    for hospital_data in hospitals:
+        lat, lng = hospital_data['geometry']['location']['lat'], hospital_data['geometry']['location']['lng']
+        gmap.marker(lat, lng, color='red', title=hospital_data['name'], symbol='+')
+
+    map_filename = "hospital_map.html"
+    gmap.draw(map_filename)
+
+    return map_filename
+
+api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+
+my_location = get_current_location1()['loc']
+current_location = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+
+if current_location:
+    radius = 2000
+    hospitals_list = get_hospitals(api_key, current_location, radius)
+
+    if hospitals_list:
+        map_filename = plot_google_map(api_key, current_location, hospitals_list)
+
+        print(f"Map generated. Opening the map in the default web browser.")
+        import webbrowser
+        webbrowser.open_new_tab(map_filename)
+    else:
+        print("No hospitals found nearby.")
+else:
+    print("Unable to determine current location.")
+import requests
+
+def get_nearest_hospital(api_key, location):
+    url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={location}&rankby=distance&type=hospital&key={api_key}'
+    response = requests.get(url)
+    data = response.json()
+    if 'results' in data:
+        if data['results']:
+            nearest_hospital_location = data['results'][0]['geometry']['location']
+            return nearest_hospital_location
+    return None
+
+def get_traffic_conditions(api_key, location):
+    base_url = 'https://roads.googleapis.com/v1/snapToRoads'
+    api_url = f'{base_url}?path={location}&interpolate=true&key={api_key}'
+
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+
+        data = response.json()
+
+        if 'snappedPoints' in data:
+            for point in data['snappedPoints']:
+                print(f"Location: {point['location']}")
+                print(f"Original Index: {point['originalIndex']}")
+                print(f"Place ID: {point['placeId']}")
+                print(f"Road Type: {point['placeId']}")
+
+                if 'metadata' in point and 'roadInfo' in point['metadata']:
+                    traffic_info = point['metadata']['roadInfo']
+                    print(f"Traffic Condition: {traffic_info.get('currentSpeedKmph', 'N/A')} km/h")
+                else:
+                    print("Traffic Condition: N/A")
+
+                print("-------------")
+
+        else:
+            print(f"Error: No snapped points in the response.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    location = '22.594480,88.265690'  # Replace with the desired location (latitude, longitude)
+    nearest_hospital_location = get_nearest_hospital(api_key, location)
+    if nearest_hospital_location:
+        nearest_hospital_location_str = f"{nearest_hospital_location['lat']},{nearest_hospital_location['lng']}"
+        print(f"Nearest Hospital Location: {nearest_hospital_location_str}")
+        get_traffic_conditions(api_key, nearest_hospital_location_str)
+    else:
+        print("Error: No hospitals found nearby.")
+

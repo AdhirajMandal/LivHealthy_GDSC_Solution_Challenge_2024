@@ -1,11 +1,38 @@
 import googlemaps
 import folium
 import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Initialize Firebase
+def initialize_firebase():
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        cred = credentials.Certificate("E:/GDSC PROJECt/Accident Report/Firebase Key/serviceaccountkey.json")
+        firebase_admin.initialize_app(cred, {'databaseURL': 'https://gdsc-412506-default-rtdb.firebaseio.com/'})
+
+# Function to retrieve accident details from Firebase
+def retrieve_accident_details():
+    db = firestore.client()
+    accidents_ref = db.collection("accidents")
+    docs = accidents_ref.stream()
+    accident_coordinates = []
+
+    for doc in docs:
+        accident_data = doc.to_dict()
+        accident_coordinates.append({
+            'latitude': accident_data['latitude'],
+            'longitude': accident_data['longitude'],
+        })
+
+    return accident_coordinates
+
 
 def get_current_location():
     try:
-       
         response = requests.get('https://ipinfo.io/json')
+        
         if response.status_code == 200:
             data = response.json()
             location = {
@@ -26,7 +53,6 @@ def get_current_location():
 def search_nearby_locations(api_key, location, keyword, radius=5000):
     gmaps = googlemaps.Client(key=api_key)
     
-    # Define the parameters for the nearby search
     params = {
         'location': location,
         'radius': radius,
@@ -34,8 +60,7 @@ def search_nearby_locations(api_key, location, keyword, radius=5000):
     }
     
     places_result = gmaps.places_nearby(**params)
-    
-    # Extract information about the locations
+
     nearby_locations = []
     for place in places_result.get('results', []):
         location_info = {
@@ -48,36 +73,50 @@ def search_nearby_locations(api_key, location, keyword, radius=5000):
     return nearby_locations
 
 def create_map(center_location, zoom_start=14):
-    
     return folium.Map(location=center_location, zoom_start=zoom_start)
 
-def add_markers(map_object, locations):
-
+def add_markers(map_object, locations, marker_type='default'):
     for location in locations:
+        if marker_type == 'accident':
+            popup_text = "Accident Location"
+            icon_color = 'black'
+            lat, lng = location['latitude'], location['longitude']
+        else:
+            popup_text = f"{location['name']} - {location['address']}"
+            icon_color = 'green'
+            lat, lng = location['location']['lat'], location['location']['lng']
+
         folium.Marker(
-            location=[location['location']['lat'], location['location']['lng']],
-            popup=f"{location['name']} - {location['address']}",
-            icon=folium.Icon(color='blue', icon='info-sign')
+            location=[lat, lng],
+            popup=popup_text,
+            icon=folium.Icon(color=icon_color, icon='info-sign')
         ).add_to(map_object)
 
+
 def main():
+    initialize_firebase()
 
+    # Retrieve accident coordinates from Firebase
+    accident_coordinates = retrieve_accident_details()
+
+    # Retrieve current location and search for nearby botanical gardens
     api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
-    
     my_location = get_current_location()['loc']
-    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    map_center = ((float)(my_location.split(',')[0]), (float)(my_location.split(',')[1]))
 
-    search_keyword = 'Playgrounds and recreational centres near me'  # Change this to your desired keyword
-    
+    search_keyword = 'playgrounds near me '  # Change this to your desired keyword
     search_radius = 5000
-    
     nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
 
+    # Create folium map centered around the current location
     my_map = create_map(map_center)
-    
-    add_markers(my_map, nearby_locations)
 
-    my_map.save('nearby_locations_map.html')
+    # Add markers for accident coordinates and nearby botanical gardens
+    add_markers(my_map, accident_coordinates, marker_type='accident')  # Red markers for accidents
+    add_markers(my_map, nearby_locations)  # Blue markers for botanical gardens
+
+    # Save the map as an HTML file
+    my_map.save('accidents_and_botanical_gardens_map.html')
 
 if __name__ == "__main__":
     main()

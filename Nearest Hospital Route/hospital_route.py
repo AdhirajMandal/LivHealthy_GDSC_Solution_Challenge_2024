@@ -1,6 +1,8 @@
 import requests
 import folium
 import polyline
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 def get_current_location():
     try:
@@ -42,6 +44,27 @@ def find_nearby_hospitals(api_key, latitude, longitude, radius=5000, types='hosp
     else:
         print(f"Error: {data.get('status', 'Unknown error')}")
         return None
+    
+def initialize_firebase():
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        cred = credentials.Certificate("E:/GDSC PROJECt/Accident Report/Firebase Key/serviceaccountkey.json")
+        firebase_admin.initialize_app(cred, {'databaseURL': 'https://gdsc-412506-default-rtdb.firebaseio.com/'})
+
+def retrieve_accident_details():
+    db = firestore.client()
+    accidents_ref = db.collection("accidents")
+    docs = accidents_ref.stream()
+    accident_coordinates = []
+    for doc in docs:
+        accident_data = doc.to_dict()
+        latitude = accident_data.get('latitude')
+        longitude = accident_data.get('longitude')
+        if latitude is not None and longitude is not None:
+            accident_coordinates.append((latitude, longitude))
+    return accident_coordinates
+
 
 def print_hospitals(hospitals):
     if hospitals:
@@ -52,10 +75,11 @@ def print_hospitals(hospitals):
             print(f"{idx}. {name} - {vicinity}")
     else:
         print("No hospitals found.")
-
+        
+        
 def mark_on_map(map_object, latitude, longitude, popup_text):
     folium.Marker([latitude, longitude], popup=popup_text).add_to(map_object)
-
+    
 def get_route(api_key, origin, destination):
     base_url = 'https://maps.googleapis.com/maps/api/directions/json'
     params = {
@@ -72,14 +96,23 @@ def get_route(api_key, origin, destination):
     else:
         print(f"Error: {data.get('status', 'Unknown error')}")
         return None
+    
+def mark_accident_coordinates_on_map(map_object, accident_coordinates):
+    for idx, (latitude, longitude) in enumerate(accident_coordinates, start=1):
+        popup_text = f"Accident {idx}\nLatitude: {latitude}, Longitude: {longitude}"
+        folium.Marker([latitude, longitude], popup=popup_text, icon=folium.Icon(color='black')).add_to(map_object)
+
+# The rest of the code remains the same
 
 if __name__ == "__main__":
-    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
+    api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'  # Replace with your Google Maps API key
+
+    initialize_firebase()
 
     my_location = get_current_location()['loc']
-    origin_latitude = (float)(my_location.split(',')[0])
-    origin_longitude = (float) (my_location.split(',')[1])
-    
+    origin_latitude = float(my_location.split(',')[0])
+    origin_longitude = float(my_location.split(',')[1])
+
     radius = 5000
 
     hospitals = find_nearby_hospitals(api_key, origin_latitude, origin_longitude, radius)
@@ -101,4 +134,8 @@ if __name__ == "__main__":
         decoded_route = polyline.decode(route_coordinates)
         folium.PolyLine(locations=decoded_route, color='blue').add_to(hospital_map)
 
-    hospital_map.save("hospital_route_map.html")
+    # Retrieve accident coordinates from Firebase and mark them on the map
+    accident_coordinates = retrieve_accident_details()
+    mark_accident_coordinates_on_map(hospital_map, accident_coordinates)
+
+    hospital_map.save("hospital_accident_route_map.html")

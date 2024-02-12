@@ -1,11 +1,36 @@
 import googlemaps
 import folium
 import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+def initialize_firebase():
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        cred = credentials.Certificate("E:/GDSC PROJECt/Accident Report/Firebase Key/serviceaccountkey.json")
+        firebase_admin.initialize_app(cred, {'databaseURL': 'https://gdsc-412506-default-rtdb.firebaseio.com/'})
+
+def retrieve_accident_details():
+    db = firestore.client()
+    accidents_ref = db.collection("accidents")
+    docs = accidents_ref.stream()
+    accident_locations = []
+
+    for doc in docs:
+        accident_data = doc.to_dict()
+        accident_locations.append({
+            'name': 'Accident Area',
+            'location': [float(accident_data['latitude']), float(accident_data['longitude'])],
+            'popup': 'Accident Area'
+        })
+
+    return accident_locations
 
 def get_current_location():
-    try:  
+    try:
         response = requests.get('https://ipinfo.io/json')
-        
+
         if response.status_code == 200:
             data = response.json()
             location = {
@@ -23,7 +48,6 @@ def get_current_location():
         print(f"Error: {e}")
         return 'Error'
 
-
 def search_nearby_locations(api_key, location, keyword, radius=5000):
     gmaps = googlemaps.Client(key=api_key)
 
@@ -32,10 +56,8 @@ def search_nearby_locations(api_key, location, keyword, radius=5000):
         'radius': radius,
         'keyword': keyword,
     }
-    
 
     places_result = gmaps.places_nearby(**params)
-    
 
     nearby_locations = []
     for place in places_result.get('results', []):
@@ -43,40 +65,58 @@ def search_nearby_locations(api_key, location, keyword, radius=5000):
             'name': place['name'],
             'address': place.get('vicinity', 'N/A'),
             'location': place['geometry']['location'],
+            'popup': f"{place['name']} - {place.get('vicinity', 'N/A')}"
         }
         nearby_locations.append(location_info)
-    
+
     return nearby_locations
 
 def create_map(center_location, zoom_start=14):
     return folium.Map(location=center_location, zoom_start=zoom_start)
 
-def add_markers(map_object, locations):
-
+def add_markers(map_object, locations,icon,colour):
     for location in locations:
+        print(location)
+        if 'lat' in location['location'] and 'lng' in location['location']:
+            lat, lng = location['location']['lat'], location['location']['lng']
+        elif isinstance(location['location'], (list, tuple)):
+            lat, lng = location['location'][0], location['location'][1]
+        else:
+            raise ValueError(f"Invalid location format: {location['location']}")
+
         folium.Marker(
-            location=[location['location']['lat'], location['location']['lng']],
-            popup=f"{location['name']} - {location['address']}",
-            icon=folium.Icon(color='blue', icon='info-sign')
+            location=[lat, lng],
+            popup=location['popup'],
+            icon=folium.Icon(color=colour, icon=icon)
         ).add_to(map_object)
 
+
 def main():
-
     api_key = 'AIzaSyClYknpllY9faw3p7LbObE2RomXm_8gX2Y'
-    my_location = get_current_location()['loc']
-    map_center = ((float)(my_location.split(',')[0]),(float) (my_location.split(',')[1]))
+    initialize_firebase()
     
-    search_keyword = 'chemical storage facilities near me'  # Change this to your desired keyword
+    # Retrieve accident details from Firebase
+    accident_locations = retrieve_accident_details()
 
+    # Retrieve current location
+    my_location = get_current_location()['loc']
+    map_center = (float(my_location.split(',')[0]), float(my_location.split(',')[1]))
+
+    # Search for chemical storage facilities
+    search_keyword = 'chemical storage facilities near me'
     search_radius = 4000
-    
-    nearby_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
-    
+    chemical_locations = search_nearby_locations(api_key, my_location, search_keyword, search_radius)
+    print
+
+    # Create a Folium map centered around the current location
     my_map = create_map(map_center)
 
-    add_markers(my_map, nearby_locations)
+    # Add markers for chemical storage facilities and accident areas
+    add_markers(my_map, chemical_locations,'info-sign','blue')
+    add_markers(my_map, accident_locations,'solid','black')
 
-    my_map.save('nearby_locations_map.html')
+    # Save the map as an HTML file
+    my_map.save('combined_map.html')
 
 if __name__ == "__main__":
     main()
